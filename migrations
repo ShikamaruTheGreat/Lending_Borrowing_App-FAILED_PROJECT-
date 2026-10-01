@@ -1,0 +1,7 @@
+- added new table day_counter
+- altered borrows table to add a new column is_counting boolean
+- altered borrows table to add a new column is_returned boolean
+- altered day_counter table to have borrow_id as both FK and PK
+- added new table chat_room
+- removed unique constraint from FK user_id in interested table
+- added double unique constraint for item_id and user_id in interested table

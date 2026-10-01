@@ -1,0 +1,58 @@
+KNOWN ISSUES
+============
+
+
+1. CONFIRMED BUGS
+-----------------
+
+Auth
+- Slur filter on usernames is case-sensitive, so "xxSLAVExx" passes.
+- /login calls the paid email-verification API on every request, so an API outage or
+  quota hit locks every user out. Verification belongs at registration only.
+
+Users and listings
+- shipping_address is UNIQUE, so a second user setting the same address gets a 500.
+- /item_listing/{item_id}/{name} returns 200 with a fake listing for an item that
+  does not exist.
+
+Interest and offers
+- Showing interest in the same item twice violates UNIQUE(item_id, user_id) and
+  returns a 500.
+- A user can show interest in their own item. Lending it to themselves then hits the
+  lender <> borrower CHECK constraint and returns a 500.
+- WeekPlan has no validation: 0 or negative weeks and a negative weekly fee are
+  accepted. The spec says the minimum loan is one week.
+- Accepting an offer twice re-inserts the day_counter primary key and returns a 500.
+  Fix: add borrows.c.has_shipped.is_(None) to the first lookup in accept_offer.
+- accept_offer does not require the borrower to have a shipping address, so a borrow
+  can become "shipped" with no destination.
+
+Proof images
+- see_uploaded_images returns /item_images/borrow_N/... URLs, but proof images are
+  stored in insurance_images/ and only item_images/ is mounted. Every link 404s.
+- The upload endpoint only checks the file extension. One junk file named proof.png
+  makes PIL raise inside see_uploaded_images and the lender's whole page returns 500.
+
+
+2. FOUND BY READING THE CODE (not reproduced)
+---------------------------------------------
+
+Likely bugs
+- view_interests_all keys its result by item_name, so two items with the same name
+  overwrite each other's seeker list.
+- check_offer_status keys its result by borrower_id, so one borrower with two
+  accepted items shows only the last one.
+- Any row in borrows marks an item unavailable forever, including finished and
+  returned loans. Once an item has been lent it never appears in listings again.
+- The reminder email in send_pings_email indents its header lines inside the
+  f-string, which probably produces malformed headers.
+- see_uploaded_images reads DateTimeOriginal (36867) from the top-level EXIF dict, but
+  camera photos store it in the Exif sub-IFD. It likely falls back to the file's
+  modified time (306) instead of the capture date.
+
+Security and hygiene
+- /login returns different errors for "email not found" and "wrong password", which
+  lets an attacker check which emails are registered.
+- The auth cookie is set with httponly only, with no secure or samesite flags.
+- Image URLs and the ghost_ping call hardcode http://127.0.0.1:8000.
+- email_verify.py calls requests.get with no timeout.
